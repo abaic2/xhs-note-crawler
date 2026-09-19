@@ -1,0 +1,6 @@
+# `playwright` 只是 Python 驱动，浏览器本体来自 packages.txt 里的 apt chromium
+# （云端不能用 playwright install —— 它下载的内核在这个环境里跑不起来）。
+streamlit>=1.40,<2
+playwright>=1.40,<2
+jieba>=0.42
+requests>=2.31
