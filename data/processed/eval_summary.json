@@ -1,0 +1,34 @@
+{
+  "test_sample": {
+    "n": 60,
+    "accuracy": 0.8667,
+    "baseline": 0.4833,
+    "precision": {
+      "positive": 1.0,
+      "neutral": 0.8276,
+      "negative": 0.7273
+    },
+    "recall": {
+      "positive": 0.9524,
+      "neutral": 0.8889,
+      "negative": 0.6667
+    },
+    "updated_at": "2026-09-19 12:41:34"
+  },
+  "label_sample": {
+    "n": 60,
+    "accuracy": 0.9667,
+    "baseline": 0.4833,
+    "precision": {
+      "positive": 0.9474,
+      "neutral": 1.0,
+      "negative": 0.9167
+    },
+    "recall": {
+      "positive": 1.0,
+      "neutral": 0.9355,
+      "negative": 1.0
+    },
+    "updated_at": "2026-09-19 12:41:35"
+  }
+}
