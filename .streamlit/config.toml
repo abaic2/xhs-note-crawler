@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#FF2442"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F6F8"
+textColor = "#1B1F26"
+font = "sans serif"
+
+[server]
+# 采集一页要几十秒，超时给宽一点，别中途掐断
+maxUploadSize = 30
+enableStaticServing = false
+
+[browser]
+gatherUsageStats = false
