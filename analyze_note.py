@@ -42,7 +42,16 @@ TPL = ROOT / "report" / "template_note.html"
 ECHARTS = ROOT / "assets" / "echarts.min.js"
 
 MAX_IMAGES = 20
-MAX_IMAGE_BYTES = 24 * 1024 * 1024      # 内嵌图片总量上限，超了就只嵌前面几张
+# 内嵌图片总量上限。这也是**传输体积**的保险丝：
+# 报告 HTML 要走 Streamlit 的 websocket 发给前端。
+MAX_IMAGE_BYTES = 12 * 1024 * 1024
+# 内嵌前把图缩到这个宽度 + JPEG 质量。这是体积/画质的取舍旋钮。
+# 实测一篇 18 图的笔记（原图 3.87 MB，本身就是 1080px 的已优化 web 图）：
+#   宽 1080 → 报告 5.9 MB ｜ 800 → 4.3 MB ｜ 720 → 3.8 MB
+# 收益递减（照片类内容就是这样），所以取 800 这个折中点 ——
+# 报告里图片显示宽度有限，看不出差别，但体积降了近 30%。
+MAX_EMBED_WIDTH = 800
+JPEG_QUALITY = 82
 TOP_COMMENTS = 20
 MAX_SAMPLE = 1500
 
@@ -109,8 +118,37 @@ def pct(a, b) -> float:
 # --------------------------------------------------------------------------
 # 图片内嵌
 # --------------------------------------------------------------------------
+def _shrink(raw: bytes, name: str):
+    """把图片缩到适合内嵌的尺寸。返回 (bytes, mime)。
+
+    目的**只是压体积**，不是修 bug：报告要经 Streamlit 的 websocket 发给前端，
+    体积越小越顺。实测 18 张图从 5.9 MB 降到 4.3 MB（见 MAX_EMBED_WIDTH 的注释）。
+    注意小红书原图本来就是 1080px 的已优化 web 图，所以再编码收益有限 ——
+    遇到"缩完反而更大"就直接用原图，不要为了统一而让文件变大。
+    没装 Pillow 时原样返回，功能不受影响。
+    """
+    fallback = (raw, mimetypes.guess_type(name)[0] or "image/jpeg")
+    try:
+        import io
+
+        from PIL import Image
+    except ImportError:
+        return fallback
+    try:
+        im = Image.open(io.BytesIO(raw)).convert("RGB")
+        if im.width > MAX_EMBED_WIDTH:
+            h = max(1, round(im.height * MAX_EMBED_WIDTH / im.width))
+            im = im.resize((MAX_EMBED_WIDTH, h), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=JPEG_QUALITY, optimize=True)
+        out = buf.getvalue()
+        return (out, "image/jpeg") if len(out) < len(raw) else fallback
+    except Exception:
+        return fallback
+
+
 def embed_images(dirpath: Path, note: dict):
-    """把已下载的图片转成 base64 内嵌。没下载就返回空。"""
+    """把已下载的图片缩放后转 base64 内嵌。没下载就返回空。"""
     candidates = []
     for im in (note.get("images_local") or []):
         if im.get("file"):
@@ -125,12 +163,12 @@ def embed_images(dirpath: Path, note: dict):
         if not fp.exists():
             continue
         raw = fp.read_bytes()
-        if total + len(raw) > MAX_IMAGE_BYTES:
+        data_bytes, mime = _shrink(raw, name)
+        if total + len(data_bytes) > MAX_IMAGE_BYTES:
             break
-        mime = mimetypes.guess_type(name)[0] or "image/jpeg"
-        data = f"data:{mime};base64," + base64.b64encode(raw).decode()
-        out.append({"data": data, "bytes": len(raw), "file": name})
-        total += len(raw)
+        data = f"data:{mime};base64," + base64.b64encode(data_bytes).decode()
+        out.append({"data": data, "bytes": len(data_bytes), "file": name})
+        total += len(data_bytes)
         if not cover:
             cover = data
     return out, cover
