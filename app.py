@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -105,17 +106,59 @@ def secret_cookie() -> str:
         return ""               # 没有 secrets.toml 时 st.secrets 会直接抛错
 
 
+def extract_cookie(text: str) -> str:
+    """从「Cookie 串」**或**「Copy as cURL 的整段命令」里取出 Cookie。
+
+    为什么支持 cURL：让用户手工从 Request Headers 里挑出 cookie 那一行很容易出错
+    —— 尤其 `web_session` 是 HttpOnly，Console 里 `document.cookie` 读不到，
+    只能在 Network 面板里找。而右键 → **Copy as cURL** 一次就复制了全部请求头，
+    比手动挑选可靠得多。实测也验证了：有人会不自觉地去看**应用自己**的
+    Network（全站静态资源），那里根本不可能有小红书的 Cookie。
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    # Chrome 的 "Copy as cURL (cmd)" 会把双引号转义成 ^"，先还原
+    raw = raw.replace('^"', '"').replace("\\\n", " ")
+
+    # ① cURL 命令 → 找 -H 'cookie: ...'（-b/--cookie 也认）
+    if "curl" in raw.lower() or re.search(r"-H\s", raw):
+        m = (re.search(r"-H\s+['\"]cookie:\s*([^'\"]+)['\"]", raw, re.I | re.S)
+             or re.search(r"(?:-b|--cookie)\s+['\"]([^'\"]+)['\"]",
+                          raw, re.I | re.S))
+        if m:
+            return m.group(1).strip()
+
+    # ② 只粘了 Request Headers 里 `cookie: xxx` 那一行 → 必须剥掉前缀！
+    #    否则 parse 出来的第一个字段名会变成 "cookie: web_session"，
+    #    后面校验就找不到 web_session，反而报「缺少登录凭证」。
+    m = re.match(r"\s*cookie\s*:\s*(.+)$", raw, re.I | re.S)
+    if m:
+        return m.group(1).strip()
+
+    # ③ 兜底：文本里任意位置出现 cookie: 就取它后面
+    m = re.search(r"cookie:\s*([^\r\n]+)", raw, re.I)
+    if m:
+        return m.group(1).strip()
+
+    return raw
+
+
 def cookie_ok(raw: str) -> tuple[bool, str]:
     if not raw.strip():
         return False, "还没填 Cookie"
     jar = F.parse_cookie_string(raw)
     names = {c["name"] for c in jar}
     if not jar:
-        return False, "Cookie 格式看不懂，应该是 `k=v; k2=v2` 这种"
+        return False, ("这段文本里没解析出任何 Cookie。**最常见的原因**是"
+                       "在「本应用」的 Network 面板里复制的 —— 那里只有应用"
+                       "自己的 JS 和字体，没有小红书的 Cookie。"
+                       "请回到 `xiaohongshu.com` 那个标签页再复制。")
     if "web_session" not in names:
         return False, ("Cookie 里缺少 `web_session`（登录凭证）。"
-                       "注意它是 HttpOnly，`document.cookie` 读不到，"
-                       "要从 DevTools 的 Network → Request Headers 里整体复制。")
+                       "注意它是 HttpOnly，`document.cookie` 读不到 ——"
+                       "请到**小红书那个标签页**里用「Copy as cURL」拷贝，"
+                       "整段粘进来即可。")
     return True, f"已识别 {len(jar)} 个 Cookie"
 
 
@@ -316,26 +359,35 @@ def main() -> None:
     # ---------------- 侧边栏 ----------------
     with st.sidebar:
         st.markdown("#### 1. 登录 Cookie")
-        default_cookie = secret_cookie()
-        cookie = st.text_area(
-            "粘贴 Cookie", value=default_cookie, height=110,
-            help="必须包含 web_session。",
+        raw_cookie = st.text_area(
+            "粘贴 Cookie 或整段 cURL", value=secret_cookie(), height=120,
+            help="两种都行：一段 `k=v; k2=v2`，或「Copy as cURL」的整段命令。",
             label_visibility="collapsed",
-            placeholder="web_session=xxx; a1=yyy; webId=zzz; ...")
+            placeholder="web_session=xxx; a1=yyy; ...\n—— 或者直接粘 curl 'https://...' -H 'cookie: ...' 整段")
+        cookie = extract_cookie(raw_cookie)
+        if cookie != raw_cookie.strip() and cookie:
+            st.caption(f"✓ 已从 cURL 里提取出 Cookie（{len(cookie)} 字符）")
+        else:
+            st.caption("两种都行：Cookie 串，或「Copy as cURL」的整段命令（会自动提取）")
         ok, msg = cookie_ok(cookie)
         (st.success if ok else st.warning)(msg, icon="✅" if ok else "⚠️")
 
-        with st.expander("怎么拿 Cookie？（必读）"):
+        with st.expander("怎么拿 Cookie？（必读，90% 的人第一次都拿错）"):
             st.markdown(
-                "**`web_session` 是 HttpOnly，`document.cookie` 读不到**，"
-                "所以要这样拿：\n\n"
-                "1. 在浏览器里**登录**小红书（xiaohongshu.com）\n"
-                "2. 按 `F12` → 切到 **Network** 面板\n"
-                "3. 刷新一下页面，点任意一个 `xiaohongshu.com` 的请求\n"
-                "4. 在 **Request Headers** 里找到 `cookie:` 那一行\n"
-                "5. **整行的值全部复制**，粘到上面\n\n"
-                "有效期通常几周到几个月。失效后应用会明确提示，"
-                "重新复制一次即可。")
+                "**关键：一定要在「小红书」那个标签页里操作。**\n\n"
+                "有人会在**本应用**的 Network 面板里找 —— 那里面只有应用自己的\n"
+                "JS 和字体（`react-dom`、`emotion`、`lodash` 那些），"
+                "**不可能有小红书的 Cookie**。Network 面板只显示当前标签页。\n\n"
+                "正确步骤：\n"
+                "1. **新开一个标签页**，打开 `xiaohongshu.com` 并确认已登录"
+                "（右上角有你的头像）\n"
+                "2. 在这个标签页里按 `F12` → 切到 **Network**\n"
+                "3. 按 `F5` **刷新**（不刷新可能没有请求）\n"
+                "4. 点最上面那条 `www.xiaohongshu.com`（Type 是 `document`）的请求\n"
+                "5. **右键 → Copy → Copy as cURL**\n"
+                "6. 回到本应用，把**整段**粘进上面的框 —— 会自动提取 Cookie\n\n"
+                "为什么不用 `document.cookie`：`web_session`（真正的登录凭证）是\n"
+                "**HttpOnly**，JS 读不到。所以只能在请求头里取。")
 
         st.markdown("---")
         st.markdown("#### 2. 采集设置")
