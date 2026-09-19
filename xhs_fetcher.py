@@ -766,6 +766,12 @@ def parse_cookie_string(raw: str) -> List[Dict[str, Any]]:
         name, value = name.strip(), value.strip()
         if not name:
             continue
+        # 字段名校验：cookie name 按 RFC 6265 只能是 token，
+        # 不含空白和 / ? ' " 等分隔符。不校验的话，把整段 cURL 或一个 URL
+        # 误粘进来时会解析出 `curl 'http://...?demo` 这种垃圾字段，
+        # 反而把「没拿到任何 Cookie」误报成「Cookie 里少了某个字段」。
+        if len(name) > 64 or any(c.isspace() or c in "/?'\"\\," for c in name):
+            continue
         out.append({"name": name, "value": value,
                     "domain": ".xiaohongshu.com", "path": "/"})
     return out
