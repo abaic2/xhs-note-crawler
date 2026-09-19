@@ -505,7 +505,16 @@ def note_from_dom(d: dict, ref: "NoteRef") -> dict:
     }
 
 
-def dig_note_card(obj, _depth: int = 0) -> Optional[dict]:
+def _card_id(obj: dict) -> str:
+    for k in ("note_id", "noteId", "id"):
+        v = obj.get(k)
+        if isinstance(v, str) and v:
+            return v
+    return ""
+
+
+def dig_note_card(obj, _depth: int = 0,
+                  want_id: str = "") -> Optional[dict]:
     """在任意嵌套结构里按**特征**找一个"像笔记卡片"的字典。
 
     为什么不用固定路径：小红书的返回结构改过好几次
@@ -514,6 +523,12 @@ def dig_note_card(obj, _depth: int = 0) -> Optional[dict]:
       * 有 note_id（或 id）
       * 且带 image_list / desc / title 之一
       * 且**不是**评论对象（评论一定有 content + like_count）
+
+    `want_id`（强烈建议传）：要求卡片 id 必须等于目标 note_id。
+    **不传会出错**：登录状态下页面内嵌状态里带着首页推荐流，
+    只按"长得像"去找会抓到一张推荐卡 —— 实测抓到的标题是「做旅行攻略」，
+    而目标笔记叫「Plog | 在最后一片树叶落下之前」，图片/互动数全成 0。
+    id 不匹配时**继续往下找**而不是直接返回，这样多目标时也能命中正确的那个。
     """
     if _depth > 9:
         return None
@@ -523,14 +538,15 @@ def dig_note_card(obj, _depth: int = 0) -> Optional[dict]:
         if not is_comment and ("note_id" in keys or "id" in keys) \
                 and ({"image_list", "desc", "title"} & keys) \
                 and ("image_list" in keys or "desc" in keys or "title" in keys):
-            return obj
+            if not want_id or _card_id(obj) == want_id:
+                return obj
         for v in obj.values():
-            found = dig_note_card(v, _depth + 1)
+            found = dig_note_card(v, _depth + 1, want_id)
             if found:
                 return found
     elif isinstance(obj, list):
         for v in obj[:40]:
-            found = dig_note_card(v, _depth + 1)
+            found = dig_note_card(v, _depth + 1, want_id)
             if found:
                 return found
     return None
@@ -820,8 +836,12 @@ def fetch_with_browser(ref: NoteRef, out_root: Path, max_pages: int,
                 payload = resp.json()
             except Exception:
                 return
-            card = dig_note_card(payload)
-            if card and not captured["note"]:
+            # 必须校验 note_id：/feed 也包含 homefeed 之类的推荐流，
+            # 里面全是**别的**笔记。只按"长得像"去找会抓到推荐卡，
+            # 然后静默产出一份标题/图片全错的报告。
+            # 已知 note_id 时才接受；未知就跳过，交给后面的 SSR / meta 路径。
+            card = dig_note_card(payload, want_id=ref.note_id or "")
+            if card and ref.note_id and not captured["note"]:
                 captured["note"] = parse_note_card(card)
         elif "/comment/sub/page" in url:
             try:
@@ -850,11 +870,20 @@ def fetch_with_browser(ref: NoteRef, out_root: Path, max_pages: int,
     with sync_playwright() as p:
         ctx = None
         holder: Dict[str, Any] = {}
-        common = dict(headless=headless, user_agent=UA,
-                      viewport={"width": 1440, "height": 950},
-                      args=["--disable-blink-features=AutomationControlled",
-                            "--no-sandbox", "--disable-dev-shm-usage",
-                            "--disable-gpu"])
+        # ⚠️ launch() 和 launch_persistent_context() 接受的参数**不一样**：
+        #   launch(headless, args, executable_path, channel, ...)
+        #   launch_persistent_context(user_data_dir, headless, args, user_agent, viewport, ...)
+        #   new_context(user_agent, viewport, ...)
+        # user_agent / viewport 属于「上下文」，不属于「浏览器进程」。
+        # 之前把它们混在一份 common 里传给 launch()，直接 TypeError ——
+        # 本地走的是 launch_persistent_context，所以这个 bug 一直藏着，
+        # 只有注入 Cookie 的云端路径才会踩到。
+        launch_kw = dict(headless=headless,
+                         args=["--disable-blink-features=AutomationControlled",
+                               "--no-sandbox", "--disable-dev-shm-usage",
+                               "--disable-gpu"])
+        ctx_kw = dict(user_agent=UA, viewport={"width": 1440, "height": 950})
+
         attempts: List[dict] = []
         if exe:
             attempts.append(dict(executable_path=exe))
@@ -866,14 +895,13 @@ def fetch_with_browser(ref: NoteRef, out_root: Path, max_pages: int,
                 if jar:
                     # 有 Cookie 时显式注入，不用持久化用户目录 ——
                     # 云端文件系统是临时的，登录态反正也存不住。
-                    browser = p.chromium.launch(**common, **kw)
+                    browser = p.chromium.launch(**launch_kw, **kw)
                     holder["browser"] = browser
-                    ctx = browser.new_context(user_agent=UA,
-                                              viewport=common["viewport"])
+                    ctx = browser.new_context(**ctx_kw)
                     ctx.add_cookies(jar)
                 else:
                     ctx = p.chromium.launch_persistent_context(
-                        user_data_dir=str(profile), **common, **kw)
+                        user_data_dir=str(profile), **launch_kw, **ctx_kw, **kw)
                 log("浏览器已启动（%s）" % (kw.get("executable_path")
                                         or kw.get("channel") or "内置 chromium"))
                 break
@@ -978,12 +1006,16 @@ def fetch_with_browser(ref: NoteRef, out_root: Path, max_pages: int,
                             log(f"  SSR 状态不是合法 JSON（{marker}）：{exc}")
                             log("    （XHS 的 SSR 里有 new Map([]) 这类 JS 表达式，属正常）")
                             continue
-                        card = dig_note_card(state_obj)
+                        # 同样必须校验 note_id —— 登录态下 __INITIAL_STATE__
+                        # 里带着首页推荐流，不校验就会抓到推荐卡（实测踩过）
+                        card = dig_note_card(state_obj, want_id=ref.note_id or "")
                         if card:
                             captured["note"] = parse_note_card(card)
                             captured["note"]["_source"] = f"SSR {marker}"
-                            log(f"  ✓ 从 SSR 状态解析出笔记（{marker}）")
+                            log(f"  ✓ 从 SSR 状态解析出目标笔记（{marker}）")
                             break
+                        log(f"  {marker} 里没有 id={ref.note_id} 的笔记"
+                            "（多半只有推荐流），继续走 meta/DOM 路径")
             except Exception as exc:
                 log(f"  SSR 状态解析异常：{exc.__class__.__name__}")
 
