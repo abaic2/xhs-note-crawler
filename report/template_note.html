@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小红书笔记分析报告</title>
+<style>
+:root{
+  --bg:#F5F6F8; --card:#FFFFFF; --line:#E8EAF0;
+  --t1:#1B1F26; --t2:#5A6070; --t3:#8C93A3;
+  --red:#FF2442; --red-soft:#FFF0F2;
+  --pos:#FF4D6D; --neu:#C9CCD6; --neg:#5B7DB1;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.06);
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t1);
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1240px;margin:0 auto;padding:10px 26px;display:flex;align-items:center;gap:20px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;white-space:nowrap}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 4px var(--red-soft)}
+.nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{padding:6px 11px;border-radius:8px;color:var(--t2);font-size:13px;white-space:nowrap}
+.nav a:hover{background:var(--red-soft);color:var(--red)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 26px 70px}
+section{margin-top:30px;scroll-margin-top:70px}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:13px;flex-wrap:wrap}
+.sec-head h2{font-size:17px;font-weight:700}
+.sec-head p{color:var(--t3);font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px}
+.grid{display:grid;gap:14px}
+.two{grid-template-columns:1.3fr 1fr}
+.two-eq{grid-template-columns:1fr 1fr}
+.three{grid-template-columns:repeat(3,1fr)}
+@media(max-width:1040px){.two,.two-eq,.three{grid-template-columns:1fr}}
+.chart{width:100%;height:320px}
+.chart.tall{height:400px}
+.chart.short{height:260px}
+.card-title{font-size:14px;font-weight:700;margin-bottom:2px}
+.card-sub{font-size:12px;color:var(--t3);margin-bottom:10px}
+/* ---------- 笔记头卡 ---------- */
+.hero{display:grid;grid-template-columns:300px 1fr;gap:22px;padding:22px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-top:26px}
+@media(max-width:900px){.hero{grid-template-columns:1fr}}
+.cover{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;background:#F0F1F5;
+  display:block;border:1px solid var(--line)}
+.cover-ph{display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;
+  background:repeating-linear-gradient(45deg,#F7F8FA,#F7F8FA 10px,#F0F1F5 10px,#F0F1F5 20px)}
+.hero h1{font-size:22px;font-weight:800;letter-spacing:-.4px;line-height:1.35}
+.meta{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:10px;
+  color:var(--t2);font-size:12.5px}
+.avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#EDEFF4}
+.desc{margin-top:12px;white-space:pre-wrap;color:var(--t1);font-size:13.5px;
+  max-height:190px;overflow:auto;background:#FAFBFC;border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.tag-pill{background:var(--red-soft);color:#C7243E;border-radius:999px;padding:3px 11px;font-size:12px}
+.funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.f-item{background:#FAFBFC;border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+.f-item .k{font-size:11.5px;color:var(--t3)}
+.f-item .v{font-size:19px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.f-item .r{font-size:11px;color:var(--t3)}
+/* ---------- 图片墙 ---------- */
+.wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.wall figure{border-radius:11px;overflow:hidden;border:1px solid var(--line);background:#F7F8FA}
+.wall img{width:100%;height:230px;object-fit:cover;display:block;cursor:zoom-in;transition:.2s}
+.wall img:hover{opacity:.9}
+.wall figcaption{font-size:11px;color:var(--t3);padding:5px 8px}
+/* ---------- KPI ---------- */
+.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1180px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:14px 15px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;top:0;width:3px;height:100%;background:var(--red);opacity:.85}
+.kpi .k-label{font-size:12px;color:var(--t3)}
+.kpi .k-val{font-size:24px;font-weight:800;letter-spacing:-.8px;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .k-val small{font-size:13px;font-weight:600;color:var(--t2);margin-left:2px}
+.kpi .k-note{font-size:11.5px;color:var(--t3);margin-top:2px}
+/* ---------- 表格 ---------- */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;color:var(--t3);font-weight:600;padding:8px 10px;
+  border-bottom:1px solid var(--line);white-space:nowrap;font-size:11.5px}
+.tbl td{padding:9px 10px;border-bottom:1px solid #F2F4F8;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover{background:#FAFBFC}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.rank{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  border-radius:6px;background:#F2F4F8;color:var(--t2);font-size:11px;font-weight:700}
+.rank.top1{background:var(--red);color:#fff}
+.rank.top2{background:#FF7A8A;color:#fff}
+.rank.top3{background:#FFB3BE;color:#fff}
+.tbl-scroll{max-height:520px;overflow:auto;border-radius:10px;border:1px solid var(--line)}
+.tbl-scroll::-webkit-scrollbar{width:8px;height:8px}
+.tbl-scroll::-webkit-scrollbar-thumb{background:#D6DAE3;border-radius:8px}
+/* ---------- 标签 ---------- */
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+.tag.pos{background:#FFEDF1;color:#D62A4B}
+.tag.neg{background:#EDF2FA;color:#3D6299}
+.tag.neu{background:#F0F1F5;color:#6B7280}
+/* ---------- 评论 ---------- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.filters input[type=text]{flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--line);
+  border-radius:9px;font-size:13px;font-family:inherit;outline:none}
+.filters input[type=text]:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;
+  font-size:12.5px;color:var(--t2);cursor:pointer;font-family:inherit}
+.chip:hover{border-color:#FFC2CC}
+.chip.on{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.cmts{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;
+  max-height:600px;overflow:auto;padding-right:4px}
+.cmts::-webkit-scrollbar{width:8px}
+.cmts::-webkit-scrollbar-thumb{background:#D6DAE3;border-radius:8px}
+.cmt{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff}
+.cmt.lv2{background:#FAFBFC;border-style:dashed}
+.cmt .c-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.cmt .c-who{font-size:11.5px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmt .c-body{font-size:13px;line-height:1.6;word-break:break-word}
+.cmt .c-foot{display:flex;gap:10px;align-items:center;margin-top:7px;font-size:11px;color:var(--t3);flex-wrap:wrap}
+.cmt .c-likes{color:var(--red);font-weight:700}
+.count-note{font-size:12px;color:var(--t3);margin-left:auto}
+/* ---------- 词云 ---------- */
+.cloud-wrap{position:relative;width:100%;height:380px;border-radius:12px;overflow:hidden;
+  border:1px solid var(--line);
+  background:radial-gradient(circle at 30% 20%,#FFF6F8 0,transparent 55%),
+             radial-gradient(circle at 75% 75%,#F4F7FF 0,transparent 55%),#fff}
+.cloud-wrap svg{display:block}
+.wordlist{display:flex;flex-wrap:wrap;gap:6px;max-height:170px;overflow:auto}
+.wordlist::-webkit-scrollbar{width:6px}
+.wordlist::-webkit-scrollbar-thumb{background:#D6DAE3;border-radius:8px}
+.wchip{border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12px;
+  background:#fff;display:flex;gap:6px;align-items:center}
+.wchip span{color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+/* ---------- 其它 ---------- */
+.notice{margin-top:18px;background:var(--red-soft);border:1px solid #FFD9DF;border-radius:12px;
+  padding:11px 15px;font-size:12.5px;color:#A81D33;display:flex;gap:9px;align-items:flex-start}
+.err{background:#FFF4F4;border:1px solid #FFD5D5;color:#B42318;padding:12px 15px;
+  border-radius:10px;font-size:13px}
+.foot{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--t3);
+  font-size:12px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.lightbox{position:fixed;inset:0;background:rgba(15,18,24,.9);display:none;z-index:100;
+  align-items:center;justify-content:center;cursor:zoom-out;padding:24px}
+.lightbox.on{display:flex}
+.lightbox img{max-width:96%;max-height:96%;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand"><span class="dot"></span>小红书笔记分析报告</div>
+  <nav class="nav" id="nav"></nav>
+</div></div>
+<div class="wrap"><div id="app"></div>
+  <div class="foot"><span id="f-gen"></span>
+    <span>采集 → 清洗 → 情感 → 可视化，全部本地完成</span></div>
+</div>
+<div class="lightbox" id="lb"><img id="lb-img" alt=""></div>
+
+<script>/*__ECHARTS__*/</script>
+<script>
+const DATA = /*__DATA__*/null;
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const fmt=n=>(n==null?'—':Number(n).toLocaleString('zh-CN'));
+const SENTI={positive:['正面','pos','#FF4D6D'],neutral:['中性','neu','#C9CCD6'],negative:['负面','neg','#5B7DB1']};
+const sentiTag=k=>`<span class="tag ${SENTI[k][1]}">${SENTI[k][0]}</span>`;
+const AXIS={axisLine:{lineStyle:{color:'#E8EAF0'}},axisTick:{show:false},
+  axisLabel:{color:'#8C93A3',fontSize:11},splitLine:{lineStyle:{color:'#F2F4F8'}}};
+const TIP={backgroundColor:'#fff',borderColor:'#E8EAF0',borderWidth:1,
+  textStyle:{color:'#1B1F26',fontSize:12},
+  extraCssText:'box-shadow:0 6px 20px rgba(16,24,40,.1);border-radius:10px;'};
+const esc=s=>(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const charts=[];
+function mk(id,opt){const el=$('#'+id);if(!el)return;const c=echarts.init(el);c.setOption(opt);charts.push(c);return c;}
+window.addEventListener('resize',()=>charts.forEach(c=>c.resize()));
+
+if(!DATA){$('#app').innerHTML='<div class="err">数据未注入。请用 <code>python analysis/analyze_note.py</code> 生成报告。</div>';}
+
+function render(){
+if(!DATA)return;
+const N=DATA.note, S=DATA.stats, E=DATA.sentiment;
+
+$('#nav').innerHTML=[['note','笔记'],['kpi','指标'],['kinds','构成'],['img','图片'],['senti','情感'],
+  ['time','时段'],['geo','地域'],['words','热词'],['top','高赞评论'],['browse','全部评论']]
+  .map(([i,t])=>`<a href="#${i}">${t}</a>`).join('');
+$('#f-gen').textContent='报告生成时间 '+DATA.meta.generated_at+' · 评论 '+fmt(S.total)+' 条 · '+DATA.meta.note_source;
+
+const cover = N.cover_data
+  ? `<img class="cover" src="${N.cover_data}" alt="封面">`
+  : `<div class="cover cover-ph">${N.images.length?'图片未下载':'无封面图'}</div>`;
+
+$('#app').innerHTML=`
+<section id="note">
+  <div class="hero">
+    <div>${cover}</div>
+    <div>
+      <h1>${esc(N.title)||'(无标题)'}</h1>
+      <div class="meta">
+        ${N.author.avatar?`<img class="avatar" src="${N.author.avatar}" alt="">`:''}
+        <b>${esc(N.author.nickname)||'匿名作者'}</b>
+        ${N.time_str?`<span>发布于 ${N.time_str}</span>`:''}
+        ${N.ip_location?`<span>IP 属地 ${esc(N.ip_location)}</span>`:''}
+        ${N.type?`<span>${N.type==='video'?'视频':'图文'}</span>`:''}
+      </div>
+      ${N.desc?`<div class="desc">${esc(N.desc)}</div>`:''}
+      ${N.tags.length?`<div class="tags">${N.tags.map(t=>`<span class="tag-pill">#${esc(t)}</span>`).join('')}</div>`:''}
+      <div class="funnel">
+        ${fitem('点赞',N.interact.liked,'')}
+        ${fitem('收藏',N.interact.collected, pct(N.interact.collected,N.interact.liked)+' / 点赞')}
+        ${fitem('评论',N.interact.comment, pct(N.interact.comment,N.interact.liked)+' / 点赞')}
+        ${fitem('分享',N.interact.shared, pct(N.interact.shared,N.interact.liked)+' / 点赞')}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kinds">
+  <div class="sec-head"><h2>评论构成</h2>
+    <p>按<b>互动意图</b>分类，而不是情感 —— 这决定了评论区的性质</p></div>
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title">评论意图分布</div>
+      <div class="card-sub">${kindVerdict()}</div>
+      <div id="c-kind" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">哪类评论更容易被点赞</div>
+      <div class="card-sub">${likeVerdict()}</div>
+      <div id="c-kindlike" class="chart"></div>
+    </div>
+  </div>
+</section>
+
+<section id="kpi">
+  <div class="sec-head"><h2>评论指标</h2><p>基于本次实际采集到的 ${fmt(S.total)} 条评论</p></div>
+  <div class="grid kpis">
+    ${kpi('采集评论数',fmt(S.total),'条','一级 '+fmt(S.top)+' / 二级 '+fmt(S.sub))}
+    ${kpi('参与用户',fmt(S.users),'人','人均 '+S.per_user+' 条')}
+    ${kpi('评论总点赞',fmt(S.likes),'', '条均 '+S.avg_likes+' 赞')}
+    ${kpi('二级评论占比',S.sub_ratio,'%','反映讨论深度')}
+    ${kpi('正面率',E.pos_pct,'%','负面 '+E.neg_pct+'% · 中性 '+E.neu_pct+'%')}
+    ${kpi('情感净值',(E.net>0?'+':'')+E.net,'','正面 '+fmt(E.positive)+' / 负面 '+fmt(E.negative))}
+    ${kpi('采集覆盖率',S.coverage,'%','笔记显示 '+fmt(N.interact.comment)+' 条（含二级评论，故可能 ≥100%）')}
+    ${kpi('评论时间跨度',S.span_days,'天', S.first_date+' ~ '+S.last_date)}
+  </div>
+</section>
+
+${DATA.images_wall.length?`
+<section id="img">
+  <div class="sec-head"><h2>正文图片</h2><p>共 ${DATA.images_wall.length} 张，点击可放大</p></div>
+  <div class="wall">
+    ${DATA.images_wall.map((im,i)=>`<figure>
+      <img src="${im.data}" alt="图 ${i+1}" loading="lazy"
+           onclick="zoom(this.src)">
+      <figcaption>图 ${i+1}${im.bytes?` · ${(im.bytes/1024).toFixed(0)} KB`:''}</figcaption>
+    </figure>`).join('')}
+  </div>
+</section>`:''}
+
+<section id="senti">
+  <div class="sec-head"><h2>评论情感</h2>
+    <p>${DATA.meta.sentiment_method}${DATA.meta.sentiment_eval_text?' · '+DATA.meta.sentiment_eval_text:''}</p></div>
+  <div class="grid two">
+    <div class="card"><div class="card-title">情感构成</div>
+      <div class="card-sub">中性高是评论区常态——大量短问句与信息型留言</div>
+      <div id="c-senti" class="chart"></div></div>
+    <div class="card"><div class="card-title">情感净值随评论量变化</div>
+      <div class="card-sub">按小时聚合，看情绪是否随讨论推进而变化</div>
+      <div id="c-sentih" class="chart"></div></div>
+  </div>
+</section>
+
+<section id="time">
+  <div class="sec-head"><h2>时间分布</h2><p>评论发生在什么时候</p></div>
+  <div class="card"><div class="card-title">按日期</div>
+    <div class="card-sub">面积=评论量 · 折线=正面量</div>
+    <div id="c-day" class="chart"></div></div>
+  <div class="grid two-eq" style="margin-top:14px">
+    <div class="card"><div class="card-title">按小时</div>
+      <div class="card-sub">反映用户刷手机的时间习惯</div>
+      <div id="c-hour" class="chart short"></div></div>
+    <div class="card"><div class="card-title">按星期</div>
+      <div class="card-sub">工作日 vs 周末</div>
+      <div id="c-week" class="chart short"></div></div>
+  </div>
+</section>
+
+<section id="geo">
+  <div class="sec-head"><h2>地域分布</h2><p>仅 ${S.ip_cov}% 的评论带 IP 属地，结论基于该子集</p></div>
+  <div class="card"><div class="card-title">评论者 IP 属地 Top ${DATA.geo.length}</div>
+    <div id="c-geo" class="chart tall"></div></div>
+</section>
+
+<section id="words">
+  <div class="sec-head"><h2>评论热词</h2><p>${DATA.meta.word_method} 提取 · 字号=频次 · 颜色=情感净值</p></div>
+  <div class="grid two">
+    <div class="card"><div class="card-title">词云</div>
+      <div class="cloud-wrap" id="c-cloud"></div></div>
+    <div class="card"><div class="card-title">高频词情感排行</div>
+      <div class="card-sub">被提到最多、情绪最鲜明的词</div>
+      <div class="wordlist" id="c-wordlist"></div>
+      <div class="card-title" style="margin-top:16px">评论长度分布</div>
+      <div id="c-len" class="chart short" style="height:200px"></div>
+    </div>
+  </div>
+</section>
+
+<section id="top">
+  <div class="sec-head"><h2>高赞评论 Top ${DATA.top_comments.length}</h2>
+    <p>点赞最高的评论往往代表群体共识或最强情绪</p></div>
+  <div class="cmts" id="c-topcmt" style="max-height:none"></div>
+</section>
+
+<section id="browse">
+  <div class="sec-head"><h2>全部评论</h2>
+    <p>已嵌入 ${DATA.sample.length} 条，可搜索与筛选</p></div>
+  <div class="card">
+    <div class="filters">
+      <input type="text" id="q" placeholder="搜索评论内容或昵称…">
+      <button class="chip on" data-s="">全部</button>
+      <button class="chip" data-s="positive">正面</button>
+      <button class="chip" data-s="neutral">中性</button>
+      <button class="chip" data-s="negative">负面</button>
+      <button class="chip" data-lv="1">只看一级</button>
+      <button class="chip" data-lv="2">只看回复</button>
+      <span class="count-note" id="q-count"></span>
+    </div>
+    <div class="cmts" id="c-browse"></div>
+  </div>
+</section>
+
+<div class="notice"><span>⚠️</span><span><b>合规声明：</b>本报告由本地脚本对公开可见内容采集生成，
+  仅用于个人研究与技术演示。原始数据含用户昵称等个人信息，请勿公开传播或用于商业用途。</span></div>
+`;
+renderCharts(); renderTop(); bindBrowse();
+}
+const pct=(a,b)=>b?((a/b*100).toFixed(a/b<0.01?2:1)+'%'):'—';
+
+/* 一句话给出这篇笔记评论区的"性质"判定 —— 报告里最有用的一句话 */
+function kindVerdict(){
+  const k = Object.fromEntries(DATA.kinds.map(x=>[x.key,x]));
+  const ask = k.ask?k.ask.pct:0, dis = k.discuss?k.discuss.pct:0;
+  if(ask>=50) return `<b style="color:#D62A4B">引流型评论区</b>：${ask}% 是求资源/求关注，`
+    + `实质讨论仅 ${dis}%。这类笔记的互动数据好看，但社区讨论价值低。`;
+  if(dis>=40) return `<b style="color:#D62A4B">深度讨论型评论区</b>：${dis}% 是实质表达，`
+    + `求资源仅 ${ask}%。评论区是这篇笔记的主要价值所在。`;
+  if(dis>=20) return `<b style="color:#D62A4B">讨论型评论区</b>：${dis}% 是实质表达，`
+    + `另有大量简短回应/表情，整体氛围活跃。`;
+  if(ask>=25) return `<b style="color:#D62A4B">混合型评论区</b>：求资源 ${ask}% / 实质讨论 ${dis}%，`
+    + `两种动机并存。`;
+  if(dis>0) return `<b style="color:#D62A4B">轻互动评论区</b>：求资源 ${ask}% / 实质讨论仅 ${dis}%，`
+    + `绝大多数评论是简短回应或表情，观点表达有限。`;
+  return `<b style="color:#D62A4B">无讨论型评论区</b>：几乎没有实质表达，`
+    + `评论全部是短回应、表情或求资源（${ask}%）。`;
+}
+
+/* 哪类评论更受认可 —— 结论必须由数据得出，不能写死 */
+function likeVerdict(){
+  const A=DATA.kinds.filter(k=>k.n&&k.key!=='discuss').map(k=>DATA.avg_by_kind[k.key]);
+  const d=DATA.avg_by_kind.discuss;
+  if(!d || !d.n) return '本笔记的实质讨论评论太少，无法比较。';
+  const other=A.length?Math.max(...A.map(x=>x.avg_likes)):0;
+  if(d.avg_likes>other*1.15)
+    return `实质讨论条均获赞 <b>${d.avg_likes}</b>，高于其他类型（最高 ${other}）—— `
+      + `认真写的评论确实更被认可。`;
+  if(other>d.avg_likes*1.15)
+    return `这里出现了反直觉的情况：求资源/短回应类的条均获赞（最高 ${other}）`
+      + `反而高于实质讨论（${d.avg_likes}）。高赞靠的是"早"和"梗"，不是观点深度。`;
+  return `各类评论的条均获赞差距不大（${d.avg_likes} vs ${other}），`
+    + `说明点赞更多取决于发布时机而非内容类型。`;
+}
+const kpi=(l,v,u,n)=>`<div class="kpi"><div class="k-label">${l}</div>
+  <div class="k-val">${v}${u?`<small>${u}</small>`:''}</div><div class="k-note">${n||''}</div></div>`;
+const fitem=(l,v,r)=>`<div class="f-item"><div class="k">${l}</div>
+  <div class="v">${fmt(v)}</div><div class="r">${r||''}</div></div>`;
+
+window.zoom=src=>{const lb=$('#lb');$('#lb-img').src=src;lb.classList.add('on');};
+$('#lb').onclick=()=>$('#lb').classList.remove('on');
+
+function renderCharts(){
+const E=DATA.sentiment,S=DATA.stats;
+
+mk('c-senti',{
+  tooltip:{...TIP,trigger:'item',formatter:p=>`${p.name}<br/><b>${fmt(p.value)}</b> 条 · ${p.percent}%`},
+  legend:{bottom:0,itemWidth:9,itemHeight:9,textStyle:{color:'#5A6070',fontSize:12}},
+  series:[{type:'pie',radius:['52%','76%'],center:['50%','45%'],
+    itemStyle:{borderColor:'#fff',borderWidth:3,borderRadius:4},
+    label:{show:true,position:'center',formatter:()=>`{a|${E.neu_pct}%}\n{b|中性}`,
+      rich:{a:{fontSize:25,fontWeight:800,color:'#1B1F26',lineHeight:31},b:{fontSize:12,color:'#8C93A3'}}},
+    emphasis:{label:{show:true,formatter:p=>`{a|${p.percent}%}\n{b|${p.name}}`,
+      rich:{a:{fontSize:25,fontWeight:800,color:'#1B1F26',lineHeight:31},b:{fontSize:12,color:'#8C93A3'}}}},
+    labelLine:{show:false},
+    data:[{name:'正面',value:E.positive,itemStyle:{color:'#FF4D6D'}},
+          {name:'中性',value:E.neutral,itemStyle:{color:'#C9CCD6'}},
+          {name:'负面',value:E.negative,itemStyle:{color:'#5B7DB1'}}]}]
+});
+
+mk('c-sentih',{
+  tooltip:{...TIP,trigger:'axis'},
+  legend:{top:0,itemWidth:10,itemHeight:10,textStyle:{color:'#5A6070',fontSize:12}},
+  grid:{left:14,right:22,top:40,bottom:16,containLabel:true},
+  xAxis:{type:'category',data:S.by_hour.map((_,i)=>i+':00'),...AXIS,
+    axisLabel:{...AXIS.axisLabel,interval:2}},
+  yAxis:[{type:'value',name:'条数',nameTextStyle:{color:'#8C93A3',fontSize:11},...AXIS},
+         {type:'value',name:'净值',nameTextStyle:{color:'#8C93A3',fontSize:11},...AXIS,splitLine:{show:false}}],
+  series:[
+    {name:'评论数',type:'bar',data:S.by_hour,barWidth:'52%',
+      itemStyle:{color:'#F3D4DA',borderRadius:[4,4,0,0]}},
+    {name:'正面数',type:'bar',data:S.by_hour_pos,barWidth:'52%',
+      itemStyle:{color:'#FF4D6D',borderRadius:[4,4,0,0]}},
+    {name:'情感净值',type:'line',yAxisIndex:1,smooth:true,symbolSize:6,
+      lineStyle:{width:2,color:'#5B7DB1'},itemStyle:{color:'#5B7DB1'},data:S.by_hour_net}]
+});
+
+mk('c-day',{
+  tooltip:{...TIP,trigger:'axis'},
+  legend:{top:0,itemWidth:10,itemHeight:10,textStyle:{color:'#5A6070',fontSize:12}},
+  grid:{left:14,right:22,top:40,bottom:40,containLabel:true},
+  dataZoom:[{type:'inside'}],
+  xAxis:{type:'category',data:S.by_day.map(d=>d.d),...AXIS,boundaryGap:false},
+  yAxis:{type:'value',...AXIS},
+  series:[
+    {name:'评论量',type:'line',smooth:true,symbol:'none',
+      lineStyle:{width:0},areaStyle:{color:'rgba(255,36,66,.18)'},data:S.by_day.map(d=>d.n)},
+    {name:'正面量',type:'line',smooth:true,symbol:'circle',symbolSize:4,
+      lineStyle:{width:1.6,color:'#FF4D6D'},itemStyle:{color:'#FF4D6D'},data:S.by_day.map(d=>d.pos)},
+    {name:'负面量',type:'line',smooth:true,symbol:'circle',symbolSize:4,
+      lineStyle:{width:1.6,color:'#5B7DB1'},itemStyle:{color:'#5B7DB1'},data:S.by_day.map(d=>d.neg)}]
+});
+
+mk('c-hour',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>`${p[0].name}<br/><b>${fmt(p[0].value)}</b> 条评论`},
+  grid:{left:14,right:22,top:16,bottom:16,containLabel:true},
+  xAxis:{type:'category',data:S.by_hour.map((_,i)=>i+':00'),...AXIS,
+    axisLabel:{...AXIS.axisLabel,interval:2}},
+  yAxis:{type:'value',...AXIS},
+  series:[{type:'bar',barWidth:'58%',data:S.by_hour,
+    itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+      {offset:0,color:'#FF4D6D'},{offset:1,color:'#FFC2CC'}]),borderRadius:[4,4,0,0]}}]
+});
+
+mk('c-week',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>`${p[0].name}<br/><b>${fmt(p[0].value)}</b> 条评论`},
+  grid:{left:14,right:22,top:16,bottom:16,containLabel:true},
+  xAxis:{type:'category',data:['周一','周二','周三','周四','周五','周六','周日'],...AXIS},
+  yAxis:{type:'value',...AXIS},
+  series:[{type:'bar',barWidth:'52%',data:S.by_week,
+    itemStyle:{color:p=>p.dataIndex>=5?'#FF2442':'#FFB3BE',borderRadius:[4,4,0,0]}}]
+});
+
+const G=DATA.geo;
+mk('c-geo',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>{const d=G[p[0].dataIndex];
+      return `${d.name}<br/>评论 <b>${fmt(d.comments)}</b> 条（${d.share}%）<br/>正面率 ${d.pos}% · 负面率 ${d.neg}%`;}},
+  grid:{left:52,right:60,top:12,bottom:16},
+  xAxis:{type:'value',...AXIS},
+  yAxis:{type:'category',inverse:true,data:G.map(d=>d.name),...AXIS,splitLine:{show:false}},
+  series:[{type:'bar',barWidth:'62%',
+    data:G.map(d=>({value:d.comments,itemStyle:{borderRadius:[0,5,5,0],
+      color:new echarts.graphic.LinearGradient(0,0,1,0,[
+        {offset:0,color:'#FFD3DA'},{offset:1,color:d.pos>20?'#FF2442':'#FF7A8A'}])}})),
+    label:{show:true,position:'right',color:'#8C93A3',fontSize:11,
+      formatter:p=>fmt(p.value)+'  '+G[p.dataIndex].share+'%'}}]
+});
+
+mk('c-len',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>`${p[0].name} 字<br/><b>${fmt(p[0].value)}</b> 条`},
+  grid:{left:8,right:12,top:14,bottom:6,containLabel:true},
+  xAxis:{type:'category',data:S.len_labels,...AXIS,axisLabel:{...AXIS.axisLabel,fontSize:10,interval:0,rotate:30}},
+  yAxis:{type:'value',...AXIS,axisLabel:{...AXIS.axisLabel,fontSize:10}},
+  series:[{type:'bar',barWidth:'56%',data:S.len_counts,
+    itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+      {offset:0,color:'#FF4D6D'},{offset:1,color:'#FFC2CC'}]),borderRadius:[4,4,0,0]}}]
+});
+
+/* ---- 互动意图 ----
+   这里刻意用条形而不是饼图：引流帖的分布极度偏斜（95% vs 0.9%），
+   饼图会把小切片压成看不见的细线，条形图还能读出数值。 */
+const K=DATA.kinds.filter(k=>k.n).sort((a,b)=>a.n-b.n);
+mk('c-kind',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>{const d=K[p[0].dataIndex];
+      return `${d.name}<br/><b>${fmt(d.n)}</b> 条 · 占 ${d.pct}%`;}},
+  grid:{left:12,right:64,top:10,bottom:8,containLabel:true},
+  xAxis:{type:'value',...AXIS,axisLabel:{...AXIS.axisLabel,formatter:v=>v>=1000?(v/1000)+'k':v}},
+  yAxis:{type:'category',data:K.map(k=>k.name),...AXIS,splitLine:{show:false},
+    axisLabel:{...AXIS.axisLabel,fontSize:11}},
+  series:[{type:'bar',barWidth:'54%',
+    data:K.map(k=>({value:k.n,itemStyle:{color:k.color,borderRadius:[0,5,5,0]}})),
+    label:{show:true,position:'right',color:'#5A6070',fontSize:11,
+      formatter:p=>`${fmt(p.value)}  (${K[p.dataIndex].pct}%)`}}]
+});
+
+const AK=DATA.kinds.filter(k=>k.n).map(k=>({...DATA.avg_by_kind[k.key],key:k.key}));
+mk('c-kindlike',{
+  tooltip:{...TIP,trigger:'axis',axisPointer:{type:'shadow'},
+    formatter:p=>{const d=AK[p[0].dataIndex];
+      return `${d.name}<br/>条均获赞 <b>${d.avg_likes}</b><br/>样本 ${fmt(d.n)} 条 · 平均 ${d.avg_len} 字`;}},
+  grid:{left:12,right:46,top:14,bottom:8,containLabel:true},
+  xAxis:{type:'value',...AXIS},
+  yAxis:{type:'category',inverse:true,data:AK.map(d=>d.name),...AXIS,splitLine:{show:false}},
+  series:[{type:'bar',barWidth:'56%',
+    data:AK.map(d=>({value:d.avg_likes,itemStyle:{borderRadius:[0,5,5,0],
+      color:d.key==='discuss'?'#FF2442':(d.avg_likes>=1?'#FF4D6D':'#FFB3BE')}})),
+    label:{show:true,position:'right',color:'#8C93A3',fontSize:11}}]
+});
+
+const cloud=$('#c-cloud');
+if(cloud) buildCloud(cloud,DATA.words.slice(0,90));
+const wl=$('#c-wordlist');
+if(wl){
+  const arr=[...DATA.words].filter(d=>!d.emoji&&d.value>=2).sort((a,b)=>b.net-a.net);
+  const pick=[...arr.slice(0,14),...arr.slice(-8)];
+  wl.innerHTML=pick.map(d=>`<span class="wchip" style="border-color:${d.net>20?'#FFC2CC':(d.net<0?'#C6D2E6':'#E8EAF0')}">
+    <b style="color:${d.net>20?'#D62A4B':(d.net<0?'#3D6299':'#1B1F26')}">${esc(d.name)}</b>
+    <span>${fmt(d.value)} · ${d.net>0?'+':''}${d.net}</span></span>`).join('');
+}
+}
+
+function renderTop(){
+$('#c-topcmt').innerHTML=DATA.top_comments.map((c,i)=>`
+  <div class="cmt ${c.level===2?'lv2':''}" style="border-left:3px solid ${SENTI[c.sentiment][2]}">
+    <div class="c-top">
+      <span class="c-who"><span class="rank ${i<3?'top'+(i+1):''}" style="margin-right:6px">${i+1}</span>${esc(c.nickname)||'匿名'} · ${esc(c.ip)}</span>
+      ${sentiTag(c.sentiment)}
+    </div>
+    <div class="c-body">${esc(c.content)}</div>
+    <div class="c-foot">
+      <span class="c-likes">♥ ${fmt(c.likes)}</span>
+      ${c.replies?`<span>💬 ${fmt(c.replies)}</span>`:''}
+      <span>${c.date}</span>
+      ${c.level===2?'<span>· 回复</span>':''}
+      <span class="count-note">分值 ${c.score>0?'+':''}${c.score}</span>
+    </div>
+  </div>`).join('');
+}
+
+function bindBrowse(){
+  let st={q:'',s:'',lv:''};
+  const box=$('#c-browse'),cnt=$('#q-count');
+  function paint(){
+    const kw=st.q.trim().toLowerCase();
+    const list=DATA.sample.filter(c=>(!st.s||c.sentiment===st.s)&&(!st.lv||String(c.level)===st.lv)&&
+      (!kw||c.content.toLowerCase().includes(kw)||(c.nickname||'').toLowerCase().includes(kw)));
+    cnt.textContent=`命中 ${fmt(list.length)} / ${fmt(DATA.sample.length)} 条`;
+    box.innerHTML=list.length?list.slice(0,300).map(c=>`
+      <div class="cmt ${c.level===2?'lv2':''}">
+        <div class="c-top"><span class="c-who">${esc(c.nickname)||'匿名'} · ${esc(c.ip)}</span>${sentiTag(c.sentiment)}</div>
+        <div class="c-body">${esc(c.content)}</div>
+        <div class="c-foot"><span class="c-likes">♥ ${fmt(c.likes)}</span>
+          <span>${c.date}</span>${c.level===2?'<span>· 回复</span>':''}</div>
+      </div>`).join(''):`<div class="err">没有匹配的评论</div>`;
+  }
+  $('#q').addEventListener('input',e=>{st.q=e.target.value;paint();});
+  $$('#browse .chip').forEach(b=>b.addEventListener('click',()=>{
+    const isLv=b.dataset.lv!==undefined;
+    $$('#browse .chip').forEach(x=>{if((x.dataset.lv!==undefined)===isLv)x.classList.remove('on');});
+    b.classList.add('on');
+    if(isLv) st.lv=b.dataset.lv; else st.s=b.dataset.s;
+    paint();
+  }));
+  paint();
+}
+
+function buildCloud(host,words){
+  const W=host.clientWidth||560,H=host.clientHeight||380;
+  const ctx=document.createElement('canvas').getContext('2d');
+  const vals=words.map(d=>d.value),mx=Math.max(...vals),mn=Math.min(...vals);
+  const sizeOf=v=>12+40*Math.pow((v-mn)/((mx-mn)||1),.62);
+  const placed=[],out=[];
+  for(const d of words){
+    const fs=sizeOf(d.value);
+    ctx.font=`700 ${fs}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    const tw=ctx.measureText(d.name).width,th=fs*1.22;
+    let px,py,ok=false;const cx=W/2,cy=H/2;
+    for(let t=0;t<4200;t+=0.32){
+      const r=2.5*t,a=t;
+      px=cx+r*Math.cos(a)*.66;py=cy+r*Math.sin(a)*.46;
+      const bx=px-tw/2,by=py-th/2;
+      if(bx<3||by<3||bx+tw>W-3||by+th>H-3)continue;
+      const rr={x:bx-2,y:by-2,w:tw+4,h:th+4};
+      if(!placed.some(p=>!(rr.x+rr.w<p.x||p.x+p.w<rr.x||rr.y+rr.h<p.y||p.y+p.h<rr.y))){
+        placed.push(rr);ok=true;break;}
+    }
+    if(!ok)continue;
+    const c=d.emoji?(d.net>15?'#D98AE4':'#B18AE4')
+      :d.net>20?'#E01B3C':d.net>0?'#F2798F':d.net<-10?'#3D6299':d.net<0?'#9DAEC9':'#8C93A3';
+    out.push({d,px,py,fs,c});
+  }
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width','100%');svg.setAttribute('height','100%');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.innerHTML=out.map(o=>`<g><title>${esc(o.d.name)}：${fmt(o.d.value)} 次 · 情感净值 ${o.d.net>0?'+':''}${o.d.net}</title>
+    <text x="${o.px.toFixed(1)}" y="${o.py.toFixed(1)}" text-anchor="middle" dominant-baseline="middle"
+      font-family="PingFang SC,Microsoft YaHei,sans-serif" font-weight="700"
+      font-size="${o.fs.toFixed(1)}" fill="${o.c}">${esc(o.d.name)}</text></g>`).join('');
+  host.innerHTML='';host.appendChild(svg);
+}
+
+render();
+</script>
+</body>
+</html>
