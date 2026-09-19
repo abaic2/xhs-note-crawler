@@ -1,0 +1,10 @@
+# 采集与分析产物（每次运行都会重新生成）
+reports/
+data/notes/
+
+# 登录态：Cookie 等同账号凭证，绝不能提交
+.browser_profile/
+.streamlit/secrets.toml
+
+__pycache__/
+*.pyc
