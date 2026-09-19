@@ -193,10 +193,18 @@ def run_pipeline(url: str, cookie: str, max_pages: int, images: bool) -> dict:
     out["note_dir"] = str(note_dir) if note_dir else None
 
     if note_dir is None:
-        out["error"] = ("采集失败。看上面的日志最后几行：\n"
-                        "· 出现「Cookie 无效或已过期」→ 重新复制 Cookie\n"
-                        "· 出现「人机验证」→ 服务器 IP 被风控了\n"
-                        "· 出现「笔记不可见」→ 回 App 重新复制分享链接（xsec_token 会过期）")
+        # 直接把采集器日志的最后几行端上来。采集器**已经**给出了具体诊断
+        # （Cookie 失效 / 人机验证 / 笔记不可见 / 结构变了），
+        # 再列一通"所有可能原因"只会让人猜 —— 应该让用户看到真实的错误。
+        tail = [ln for ln in log.buf[-8:] if ln.strip()]
+        out["error"] = (
+            "采集失败。以下是采集器的原始日志：\n\n```\n"
+            + "\n".join(tail)
+            + "\n```\n\n对照一下：\n\n"
+            "· 「Cookie 无效或已过期」→ 重新复制 Cookie\n"
+            "· 「人机验证 / 安全校验」→ 服务器 IP 被风控了，等一阵再试\n"
+            "· 「笔记不可见」→ xsec_token 过期，回 App 重新复制分享链接\n"
+            "· 「启动失败」→ 云端缺少 chromium，检查 packages.txt")
         out["elapsed"] = time.time() - t0
         box.empty()
         return out
